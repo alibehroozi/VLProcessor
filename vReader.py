@@ -1,14 +1,27 @@
 class VReader:
     def __init__(self, fileName):
+        
         if fileName.split(".")[1] != "v":
             print("File should be in verilog (.v) format!")
             return False
-        f = read(fileName, "r")
-        if len(f) == "":
+        f = open(fileName, "r")
+        content = f.read()
+        if len(content) == "":
             print("File is empty!")
             return False
-        self.content = f.read()
-        print(self.content)
+        self.content = content
+        self.getLines()
         
+    def getLines(self):
+        self.commands = []
+        lines = self.content.split("\n")
+        for line in lines:
+            cmds = line.split(";")
+            for cmd in cmds:
+                command = cmd.strip().strip("\n").strip("\t")
+                if command != "":
+                    self.commands.append(command)
+        print(self.commands)
+                
 
-v = VReader("1.v")
+v = VReader("xor_gate.v")
