@@ -2,23 +2,25 @@ class VReader:
     keyWords = ['endmodule', 'module', 'wire', '=']
     validModuleName = "abcdefghijklmnopqrstuvwxyz_1234567890"
     def __init__(self, fileName):
-        self.fileName = fileName
-        if fileName.split(".")[1] != "v":
-            print("File should be in verilog (.v) format!")
-            return False
-        f = open(fileName, "r")
-        content = f.read()
-        if len(content) == "":
-            print("File is empty!")
-            return False
-        self.content = content
-        self.ERRORS = []
-        self.WARNINGS = []
-        self.inputs = []
-        self.outputs = []
-        self.wires = []
-        self.moduleName = []
-        
+        try:
+            self.fileName = fileName
+            if fileName.split(".")[1] != "v":
+                print("File should be in verilog (.v) format!")
+                return False
+            f = open(fileName, "r")
+            content = f.read()
+            if len(content) == "":
+                print("File is empty!")
+                return False
+            self.content = content
+            self.ERRORS = []
+            self.WARNINGS = []
+            self.inputs = []
+            self.outputs = []
+            self.wires = []
+            self.moduleName = []
+        except:
+            print("ERROR READING VERILOG FILE!")
         
     def startProcessing(self):
         try:
@@ -30,21 +32,24 @@ class VReader:
             self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
     
     def writeOutput(self, fileName):
-        f = open(fileName, "w")
-        stringToWrite = "=================================================\n" + "*		Syntax result							*\n" + "=================================================\n\n"
-        if self.ERRORS == [] and self.WARNINGS == []:
-            stringToWrite += "OK\n\n"
-        else:
-            for error in self.ERRORS:
-                stringToWrite += "ERROR: " + error + "\n"
-            for warning in self.WARNINGS:
-                stringToWrite += "WARNING: " + warning + "\n"
-            stringToWrite += "\n"
-        if self.ERRORS == []:
-            stringToWrite += "=================================================\n" + "*		Circuit Graph							*\n" + "=================================================\n\n"
-            stringToWrite += self.graphLines
-            stringToWrite += "\n"
-        f.write(stringToWrite)
+        try:
+            f = open(fileName, "w")
+            stringToWrite = "=================================================\n" + "*		Syntax result							*\n" + "=================================================\n\n"
+            if self.ERRORS == [] and self.WARNINGS == []:
+                stringToWrite += "OK\n\n"
+            else:
+                for error in self.ERRORS:
+                    stringToWrite += "ERROR: " + error + "\n"
+                for warning in self.WARNINGS:
+                    stringToWrite += "WARNING: " + warning + "\n"
+                stringToWrite += "\n"
+            if self.ERRORS == []:
+                stringToWrite += "=================================================\n" + "*		Circuit Graph							*\n" + "=================================================\n\n"
+                stringToWrite += self.graphLines
+                stringToWrite += "\n"
+            f.write(stringToWrite)
+        except:
+            print("ERROR WRITING RESULT FILE!")
         
     def getLines(self):
         self.commands = []
@@ -338,6 +343,8 @@ class VReader:
             vectorCounter += 1
             wireConnecting[input] = ""
             graphLines.append("VECTOR_"+ str(vectorCounter) + ": wire_"+str(input) + " - NODE_INPUT_" + str(vectorCounter) + ":NODE_BRANCH_"+ str(input))
+            
+
         
         
         for input in self.inputs:
