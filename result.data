@@ -1,0 +1,31 @@
+=================================================
+*		Syntax result							*
+=================================================
+
+OK
+
+=================================================
+*		Circuit Graph							*
+=================================================
+
+NODE_INPUT_1: input_i1
+NODE_INPUT_2: input_i2
+NODE_OUTPUT_1: output_i2
+NODE_AND_1: and
+NODE_AND_2: and
+NODE_NOT_1: not
+NODE_NOT_2: not
+NODE_OR_1: or
+NODE_BRANCH_i1: branch_i1
+NODE_BRANCH_i2: branch_i2
+VECTOR_1: wire_i1 - NODE_INPUT_1:NODE_BRANCH_i1
+VECTOR_2: wire_i2 - NODE_INPUT_2:NODE_BRANCH_i2
+VECTOR_3: branch_i1_1 - NODE_BRANCH_i1:NODE_AND_1
+VECTOR_4: branch_i1_2 - NODE_BRANCH_i1:NODE_NOT_2
+VECTOR_5: branch_i2_1 - NODE_BRANCH_i2:NODE_NOT_1
+VECTOR_6: branch_i2_2 - NODE_BRANCH_i2:NODE_AND_2
+VECTOR_7: not_1_out - NODE_NOT_1:AND_1
+VECTOR_8: mid1 - NODE_AND_1:OR_1
+VECTOR_9: not_2_out - NODE_NOT_2:AND_2
+VECTOR_10: mid2 - NODE_AND_2:OR_1
+VECTOR_11: or_1_out - NODE_OR_1:NODE_OUTPUT_1
