@@ -19,17 +19,18 @@ class VReader:
             self.outputs = []
             self.wires = []
             self.moduleName = []
+            self.moduleCallings = []
         except:
             print("ERROR READING VERILOG FILE!")
         
     def startProcessing(self):
-        try:
+        #try:
             self.getLines()
             self.processLines()
             self.isUsedWiresInModule()
             self.graphLines = self.outGraph()
-        except:
-            self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
+        #except:
+            #self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
     
     def writeOutput(self, fileName):
         try:
@@ -53,16 +54,17 @@ class VReader:
         
     def getLines(self):
         self.commands = []
-        lines = self.content.split("\n")
+        lines = self.content.split(";")
         i = 0
         for line in lines:
             i += 1
-            line = line.strip().strip("\n").strip("\t")
+            line = line.replace("\n","").strip().strip("\n").strip("\t")
             if line[:2] == "//":
                 line = ""
             line = line.split("//")[0]
             if line != "" and line[-1] != ";" and line != "endmodule":
-                self.ERRORS.append(self.fileName + ":line_" + str(i) + " - SYNTAX_ERROR:MISSING ;")
+                pass
+                #self.ERRORS.append(self.fileName + ":line_" + str(i) + " - SYNTAX_ERROR:MISSING ;")
             cmds = line.split(";")
             for cmd in cmds:
                 command = cmd.strip().strip("\n").strip("\t")
@@ -73,8 +75,21 @@ class VReader:
     def processLines(self):
         self.processedCmds = []
         i = 0
+        
         endmodule = 0
         module = 0
+        proccesed = 0
+        cCounter = -1
+        for cmd in self.commands:
+            cCounter += 1
+            if len(cmd.split(" ")) > 1 and cmd.split(" ")[1].find("(") != -1 and ''.join(cmd.split(" ")[1:]).find(".") != -1 and cmd.find("wire") == -1 and cmd.find("=") == -1 and cmd.split(" ")[0] not in ["wire", "module", "endmodule"]:
+                #if self.checkOtherKeyWords(i, ['(']):
+                
+                proccesed += 1
+                self.processedCmds.append((cmd,"module_call"))
+                self.moduleCall(proccesed, cCounter)
+                    
+        
         for cmd in self.commands:
             i += 1
             cmdt = cmd.lower()
@@ -87,44 +102,135 @@ class VReader:
         if self.ERRORS == []:
             i = 0
             for cmd in self.commands:
-                
                 i += 1
+                
                 
                 cmdt = cmd.lower()
                 appended = 0
                 if cmdt.find("endmodule") != -1:
+                    proccesed += 1
                     self.processedCmds.append((cmd,"endmodule"))
                     self.checkOtherKeyWords(i, ['endmodule', 'module'])
                 elif cmdt.find("module") != -1:
-                    self.processedCmds.append((cmd,"module"))
                     if self.checkOtherKeyWords(i, ['module']):
-                        self.moduleDefine(i)
+                        proccesed += 1
+                        self.processedCmds.append((cmd,"module"))
+                        self.moduleDefine(proccesed)
+                        
                 elif cmdt.find("wire") != -1:
-                    self.processedCmds.append((cmd,"wire"))
                     if self.checkOtherKeyWords(i, ['wire', '=']):
-                        self.wireDefine(i)
+                        proccesed += 1
+                        self.processedCmds.append((cmd,"wire"))
+                        self.wireDefine(proccesed)
                     
                 
                 elif cmdt.find("=") != -1 and cmd.find("wire") == -1:
-                    self.processedCmds.append((cmd,"="))
-                    if self.checkOtherKeyWords(i, ['wire', '=']):
-                        self.wireUse(i)
+                    
+                    if self.checkOtherKeyWords(i, ['=', 'wire']):
+                        proccesed += 1
+                        self.processedCmds.append((cmd,"="))
+                        self.wireUse(proccesed)
+                
+        
                 
             
                     
             
     def checkOtherKeyWords(self, line, keyWord):
-        if self.commands[line-1].count("=") > 1:
-            self.ERRORS.append(self.fileName + ":line_" + str(line) + " - SYNTAX_ERROR:MISSING ;")
-        for kw in self.keyWords:
-            if kw not in keyWord and self.commands[line-1].lower().find(kw) != -1:
-                
-                self.processedCmds.pop()
-                self.ERRORS.append(self.fileName + ":line_" + str(line) + " - SYNTAX_ERROR:MISSING ;")
-                return False
-        return True
+        if (self.commands[line-1].count("=") > 1 or self.commands[line-1].count("wire") > 1) or self.commands[line-1].count(keyWord[0]) > 1:
+            self.ERRORS.append(self.fileName + ":line_" + str(self.findLineNumber(self.commands[line-1])) + " - SYNTAX_ERROR:MISSING ;")
+            return False
+        else:
+            for kw in self.keyWords:
+                if (kw not in keyWord and self.commands[line-1].lower().find(kw) != -1) or self.commands[line-1].lower().count(keyWord[0]) > 1:
                     
-    
+                    #self.processedCmds.pop()
+                    self.ERRORS.append(self.fileName + ":line_" + str(self.findLineNumber(self.commands[line-1])) + " - SYNTAX_ERROR:MISSING ;")
+                    
+                    return False
+            return True
+                    
+    def findLineNumber(self, cmd):
+        charIndex = self.content.find(cmd)
+        
+        if charIndex == -1:
+            while self.content.find(cmd) == -1 and cmd != "":
+                cmd = cmd[:-1]
+                charIndex = self.content.find(cmd)
+        passedIndex = 0
+        i = -1
+        lines = self.content.split("\n")
+        for line in lines:
+            i += 1
+            passedIndex += len(line) + 1
+            if passedIndex > charIndex:
+                return i+1
+            
+            
+    def moduleCall(self, line, cc):
+        
+        cmd = self.processedCmds[line-1][0]
+        mdName = cmd.split(" ")[0]
+        
+        instanceName = cmd.split(" ")[1].split("(")[0].strip().strip("\t")
+        pranIndex = cmd.find("(")
+        insidep = cmd[pranIndex+1:-1].split(",")
+        import os
+        if not os.path.isfile(mdName+".v"):
+            print(mdName+" that is used in main module can not be found near "+self.fileName)
+            assert False
+        #f = open(mdName+".v", "r")
+        #content = f.read()
+        
+        v = VReader(mdName+".v")
+        v.startProcessing()
+        if len(v.ERRORS) > 0:
+            
+            self.ERRORS += v.ERRORS
+        else:
+            self.WARNINGS += v.WARNINGS
+            self.moduleCallings.append({ 'module_name': mdName, 'instance_name': instanceName, 'inputs': [], 'outputs': [] })
+
+            for input in insidep:
+                input = input.strip().strip("\t").strip(")").strip().strip("\t")
+                if input[0] == ".":
+                    inputName = input[1:].split("(")[0].strip().strip("\t")
+                    inputEq = input[1:].split("(")[1].strip().strip(")").strip("\t")
+                    if inputName in v.inputs:
+                        self.moduleCallings[-1]['inputs'].append([inputName,inputEq])
+                    if inputName in v.outputs:
+                        self.moduleCallings[-1]['outputs'].append([inputName,inputEq])
+            toAddBetween = []
+            for inps in self.moduleCallings[-1]['inputs']:
+                toAddBetween.append([instanceName+"_"+inps[0],inps[1]])
+            for wire in v.wires:
+                if wire[0] not in v.inputs:
+                    wire[1] = wire[1].replace("~"," ~ ").replace("|"," | ").replace("&"," & ").split(" ")
+                    wire[0] = instanceName+"_"+wire[0]
+                        
+                    o = -1
+                    for wiredec in wire[1]:
+                        o += 1
+                        if wiredec not in "~&|":
+                            wire[1][o] = instanceName +"_"+ str(wiredec)
+                    wire[1] = ''.join(wire[1])
+                    toAddBetween.append(wire)
+            for outs in self.moduleCallings[-1]['outputs']:
+                toAddBetween.append([outs[1],instanceName+"_"+outs[0],1])
+            restCmdsToAdd = self.commands[cc+1:]
+            self.commands = self.commands[:cc]
+            for wireToAdd in toAddBetween:
+                if len(wireToAdd) == 2:
+                    self.commands.append("wire "+wireToAdd[0] + "=" + wireToAdd[1])
+                else:
+                    self.commands.append(wireToAdd[0] + "=" + wireToAdd[1])
+                
+            self.commands += restCmdsToAdd
+            
+                
+            
+    def getWiresString(self):
+        pass
     def moduleDefine(self, line):
         cmd = self.processedCmds[line-1][0]
         endMIndex = cmd.find("(")
@@ -150,7 +256,9 @@ class VReader:
         
     def wireUse(self, line):
         cmd = self.processedCmds[line-1][0]
+        
         wireName = cmd.split("=")[0].strip().strip("\t")
+        
         wireEqual = cmd.split("=")[1].strip().strip("\t").replace(" ","")
         i = 0
         if self.hasWire(wireName):
@@ -370,14 +478,29 @@ class VReader:
                     op = aj[0]
                     lh = aj[1]
                     rh = ""
-                else:
+                elif len(aj) == 3:
                     op = aj[1]
                     rh = aj[0]
                     lh = aj[2]
+                else:
+                    op = ""
+                    rh = ""
+                    lh = aj[0]
                 if wire[0] in branches:
                     if brachUsedCounter[wire[0]] == 0:
                         pass
-                origins = self.connectedTo(k, wire[0])
+                if op == "" and lh not in self.outputs:
+                    wc = -1
+                    wiretos = wire[0]
+                else:
+                    wc = k
+                    wiretos = wire[0]
+                origins = self.connectedTo(wc, wiretos)
+                if op == "" and len(origins) != 0:
+                    pass
+                    op = lh
+                if op == "" and wire[0] in self.outputs:
+                    op = lh
                 
                 if wire[0][0] == "!":
                     
@@ -390,6 +513,9 @@ class VReader:
                         if out == wire[0]:
                             origins.append("NODE_OUTPUT_"+str(o+1))
                             wire[0] = op.lower()+"_out"
+                if len(origins) == 0:
+                    self.WARNINGS.append(self.fileName + " -" + " WARNING: WIRE_"+ wire[0] +" IS NOT CONNECTED ANYWHERE ON ONE SIDE")
+                    origins.append("")
                 if rh in branches and rh not in self.inputs:
                     vectorCounter += 1
                     brachUsedCounter[rh] += 1
@@ -405,13 +531,21 @@ class VReader:
                         graphLines.append("VECTOR_"+ str(vectorCounter) + ": "+ wire[0] + " - NODE_"+op + ":" + "NODE_BRANCH_"+str(wire[0]))                
                 else:
                     vectorCounter += 1
-                    graphLines.append("VECTOR_"+ str(vectorCounter) + ": "+ wire[0] + " - NODE_"+op + ":" + origins[0])
+                    toc = ""
+                    if origins[0] != "":
+                        toc = "NODE_" + origins[0]
+                    graphLines.append("VECTOR_"+ str(vectorCounter) + ": "+ wire[0] + " - NODE_"+op +":"+toc)
+        for outr in self.outputs:
+            for wirec in self.wires:
+                if wirec[0] == outr and wirec[1] == "":
+                    self.WARNINGS.append(self.fileName + " -" + " WARNING: OUTPUT_"+ outr +" IS NOT DEFINED TO STH")
  
         return "\n".join(graphLines)
     
     def connectedTo(self, j, wirec):
         i = -1
         toC = []
+        
         for wire in self.wirestemp:
             i += 1
             if i > j and (wire[1].find(wirec) != -1 or wire[0] == wirec):
@@ -421,6 +555,8 @@ class VReader:
                     toC.append(wire[1].split(" ")[1])
                 elif wire[1].find("NOT") != -1:
                     toC.append(wire[1].split(" ")[0])
+                elif wire[1] == wirec:
+                    toC.append(wire[0])
         return toC
     
     def isPure(self, p):
@@ -554,4 +690,5 @@ class VReader:
 
 v = VReader("xor_gate.v")
 v.startProcessing()
+
 v.writeOutput("result.data")
