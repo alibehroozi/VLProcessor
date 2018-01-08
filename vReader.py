@@ -29,6 +29,7 @@ class VReader:
             self.processLines()
             self.isUsedWiresInModule()
             self.graphLines = self.outGraph()
+            self.truthLines = self.truthTable()
         #except:
             #self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
     
@@ -48,20 +49,25 @@ class VReader:
                 stringToWrite += "=================================================\n" + "*		Circuit Graph							*\n" + "=================================================\n\n"
                 stringToWrite += self.graphLines
                 stringToWrite += "\n"
+                
+                stringToWrite += "=================================================\n" + "*		Truth Table							*\n" + "=================================================\n\n"
+                stringToWrite += self.truthLines
+                stringToWrite += "\n"
+                
+                
             f.write(stringToWrite)
         except:
             print("ERROR WRITING RESULT FILE!")
         
     def getLines(self):
+        self.removeComments()
         self.commands = []
         lines = self.content.split(";")
         i = 0
         for line in lines:
             i += 1
             line = line.replace("\n","").strip().strip("\n").strip("\t")
-            if line[:2] == "//":
-                line = ""
-            line = line.split("//")[0]
+
             if line != "" and line[-1] != ";" and line != "endmodule":
                 pass
                 #self.ERRORS.append(self.fileName + ":line_" + str(i) + " - SYNTAX_ERROR:MISSING ;")
@@ -71,7 +77,13 @@ class VReader:
                 if command != "":
                     self.commands.append(command)
                     
-                    
+    def removeComments(self):
+        lines = self.content.split("\n")
+        for i in range(len(lines)):
+            if lines[i][:2] == "//":
+                lines[i] = ""
+            lines[i] = lines[i].split("//")[0]
+        self.content = "\n".join(lines)
     def processLines(self):
         self.processedCmds = []
         i = 0
@@ -89,7 +101,6 @@ class VReader:
                 self.processedCmds.append((cmd,"module_call"))
                 self.moduleCall(proccesed, cCounter)
                     
-        
         for cmd in self.commands:
             i += 1
             cmdt = cmd.lower()
@@ -205,13 +216,15 @@ class VReader:
                 toAddBetween.append([instanceName+"_"+inps[0],inps[1]])
             for wire in v.wires:
                 if wire[0] not in v.inputs:
-                    wire[1] = wire[1].replace("~"," ~ ").replace("|"," | ").replace("&"," & ").split(" ")
+                    
+                    if type(wire[1]) == str:
+                        wire[1] = wire[1].replace("~"," ~ ").replace("|"," | ").replace("&"," & ").split(" ")
                     wire[0] = instanceName+"_"+wire[0]
                         
                     o = -1
                     for wiredec in wire[1]:
                         o += 1
-                        if wiredec not in "~&|":
+                        if str(wiredec) not in "~&|":
                             wire[1][o] = instanceName +"_"+ str(wiredec)
                     wire[1] = ''.join(wire[1])
                     toAddBetween.append(wire)
@@ -227,8 +240,153 @@ class VReader:
                 
             self.commands += restCmdsToAdd
             
-                
             
+    def truthTable(self):
+        testsDic = []
+        i = -1
+        
+        allPoss = 2 ** len(self.inputs)
+        for p in range(allPoss):
+            testsDic.append({})
+            
+        for input in self.inputs:
+            i += 1
+            everyChange = 2 ** (len(self.inputs) - i - 1)
+            val = 1
+            for k in range(allPoss):
+                testsDic[k][input] = val
+                if (k+1) % everyChange == 0:
+                    if val == 0:
+                        val = 1
+                    else:
+                        val = 0
+        finalStr = []
+        strRow = ""
+        for input in self.inputs:
+            strRow += input+(15*" ")+"|"
+        for output in self.outputs:
+            strRow += output+(15*" ")+"|"
+        finalStr.append(strRow.strip("|"))
+        for test in testsDic:
+            result = self.checkResultOnInputs(test)
+            
+            strRow = ""
+            for input in self.inputs:
+                if test[input] == 1:
+                    testNumber = "one"
+                else:
+                    testNumber = "zero"
+                strRow += testNumber+ (15 + (len(input) - len(testNumber)))*" "+"|"
+            for output in self.outputs:
+                if result[output] == 1:
+                    testNumber = "one"
+                elif result[output] == 0:
+                    testNumber = "zero"
+                else:
+                    testNumber = "None"
+                strRow += testNumber+(15 + (len(output) - len(testNumber)))*" "+"|"
+                
+            finalStr.append(strRow.strip("|"))
+        return "\n".join(finalStr)
+                
+    def checkResultOnInputs(self, inputs):
+        wiretemp = []
+        
+        for w in self.wires:
+            if w[0] not in self.inputs:
+                wiretemp.append(w[:])
+
+        i = -1
+        varsCaled = {'1':1,'0':0}
+        
+        for wire in wiretemp:
+            i += 1
+            if wiretemp[i][1] != "":
+                
+                if type(wiretemp[i][1]) == str:
+                    wiretemp[i][1] = wiretemp[i][1].replace("~"," ~ ").replace("|"," | ").replace("&", " & ").split(" ")
+                j = -1
+                for c in wiretemp[i][1]:
+                    j += 1
+                    if c != "":
+                        if c in self.inputs and inputs[c] != "":
+                            wiretemp[i][1][j] = inputs[c]
+                        if c == "1":
+                            c = 1
+                        if c == "0":
+                            c = 0
+                    
+                    else:
+                        pass
+                        wiretemp[i][1] = wiretemp[i][1][:j] + wiretemp[i][1][j+1:]
+                        j -= 1
+                j = -1
+                
+                c = wiretemp[i][1]
+                if len(c) == 1:
+                    if c[0] in varsCaled and varsCaled[c[0]] != "None":
+                        varsCaled[wire[0]] = varsCaled[c[0]]
+                    else:
+                        varsCaled[wire[0]] = "None"
+                elif c[0] == "~":
+                    
+                    if type(c[1]) != int:
+                        if c[1] in varsCaled and varsCaled[c[1]] != "None":
+                            c[1] = varsCaled[c[1]]
+                        else:
+                            varsCaled[wire[0]] = "None"
+                    if c[1] == 0:
+                        result = 1
+                    elif c[1] == 1:
+                        result = 0
+                    else:
+                        result = "None"
+                    varsCaled[wire[0]] = result
+                
+                elif c[1] == "&":
+                    if type(c[0]) != int:
+                        if c[0] in varsCaled and varsCaled[c[0]] != "None":
+                            c[0] = varsCaled[c[0]]
+                        else:
+                            c[0] = "None"
+                    if type(c[2]) != int:
+                        if c[2] in varsCaled and varsCaled[c[2]] != "None":
+                            c[2] = varsCaled[c[2]]
+                        else:
+                            c[2] = "None"
+                    if c[2] == "None" or c[0] == "None":
+                        
+                        varsCaled[wire[0]] = "None"
+                    else:
+                        varsCaled[wire[0]] = c[2] * c[0]
+                elif c[1] == "|":
+                    if type(c[0]) != int:
+                        if c[0] in varsCaled and varsCaled[c[0]] != "None":
+                            c[0] = varsCaled[c[0]]
+                        else:
+                            c[0] = "None"
+                    if type(c[2]) != int:
+                        if c[2] in varsCaled and varsCaled[c[2]] != "None":
+                            c[2] = varsCaled[c[2]]
+                        else:
+                            c[2] = "None"
+                    if c[2] != "None" and c[0] != "None":
+                        if c[0] == 1 or c[2] == 1:
+                            varsCaled[wire[0]] = 1
+                        else:
+                            varsCaled[wire[0]] = 0
+                    else:
+                        varsCaled[wire[0]] = "None"
+                           
+        result = {}
+        
+        
+        for out in self.outputs:
+            
+            result[out] = varsCaled[out]
+        return result
+            
+        
     def getWiresString(self):
         pass
     def moduleDefine(self, line):
@@ -383,6 +541,7 @@ class VReader:
         nots = []
         j = -1
         self.simplifyAll()
+        self.doMath()
         for wire in self.wires:
             j += 1
             wireName = wire[0]
@@ -571,7 +730,60 @@ class VReader:
                 self.processExp(j)
                 self.simplifyAll()
                 
-                    
+    def doMath(self):
+        pass
+        
+##        for i in range(len(self.wires)):
+##            if self.wires[i][1] != "":
+##                p = self.wires[i][1].replace("~"," ~ ").replace("|"," | ").replace("&"," & ").split(" ")
+##                
+##                if p[0] == "1" or p[0] == "0" or (p[0] != "~" and (p[2] == "1" or p[2] == "0")):
+##                    
+##                    if p[1] == "&":
+##                        
+##                        if p[0] == "1":
+##                            p[1] = p[2][:]
+##                            p[0] = ""
+##                            p[2] = ""
+##                        if p[0] == "0":
+##                            p[1] = "0"
+##                            p[0] = ""
+##                            p[2] = ""
+##                        if p[2] == "1":
+##                            p[0] = ""
+##                            p[2] = ""
+##                        if p[2] == "0":
+##                            p[1] = "0"
+##                            p[0] = ""
+##                            p[2] = ""
+##                    if p[0] == "|":
+##                        
+##                        if p[0] == "1":
+##                            p[2] = "1"
+##                            p[0] = ""
+##                            p[1] = ""
+##                        if p[0] == "0":
+##                            p[1] = p[2][:]
+##                            p[0] = ""
+##                            p[2] = ""
+##                        if p[2] == "1":
+##                            
+##                            p[1] = "1"
+##                            p[0] = ""
+##                            p[2] = ""
+##                        if p[2] == "0":
+##                            p[0] = ""
+##                            p[2] = ""
+##                    if p[0] == "~":
+##                        if p[1] == "1":
+##                            p[1] = "0"
+##                            p[0] = ""
+##                        if p[1] == "0":
+##                            p[1] = "1"
+##                            p[0] = ""
+##                    p = ''.join(p)
+##                    self.wires[i][1] = p
+                                
     def infix2prefix(self, exp):
         exp = "( " + exp + " )"
         preced = { '~': 15, '&': 10, '|': 5, '(': 1 }
@@ -654,8 +866,12 @@ class VReader:
                 
                 if p[0] != "~":
                     
+                    
+                            
+                                
                     toAddBefore.append([nem, str(p[1]) + str(p[0]) + str(p[2])])
                 else:
+                    
                     toAddBefore.append([nem, str(p[0]) + str(p[1])])
                 return nem
 
@@ -690,5 +906,4 @@ class VReader:
 
 v = VReader("xor_gate.v")
 v.startProcessing()
-
 v.writeOutput("result.data")
