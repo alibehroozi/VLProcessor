@@ -30,6 +30,7 @@ class VReader:
             self.isUsedWiresInModule()
             self.graphLines = self.outGraph()
             self.truthLines = self.truthTable()
+            self.allInOneLines = self.allInOnenize()
         #except:
             #self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
     
@@ -46,12 +47,16 @@ class VReader:
                     stringToWrite += "WARNING: " + warning + "\n"
                 stringToWrite += "\n"
             if self.ERRORS == []:
-                stringToWrite += "=================================================\n" + "*		Circuit Graph							*\n" + "=================================================\n\n"
+                stringToWrite += "\n=================================================\n" + "*		Circuit Graph							*\n" + "=================================================\n\n"
                 stringToWrite += self.graphLines
                 stringToWrite += "\n"
                 
-                stringToWrite += "=================================================\n" + "*		Truth Table							*\n" + "=================================================\n\n"
+                stringToWrite += "\n=================================================\n" + "*		Truth Table							*\n" + "=================================================\n\n"
                 stringToWrite += self.truthLines
+                stringToWrite += "\n"
+                
+                stringToWrite += "\n=================================================\n" + "*		Module Result							*\n" + "=================================================\n\n"
+                stringToWrite += self.allInOneLines
                 stringToWrite += "\n"
                 
                 
@@ -387,8 +392,57 @@ class VReader:
         return result
             
         
-    def getWiresString(self):
-        pass
+    def allInOnenize(self):
+        def setallInOne(exp):
+            if exp in self.inputs:
+                return exp
+            if exp == "1" or exp == "0":
+                return exp
+            if exp.find("~") == -1 and exp.find("|") == -1 and exp.find("&") == -1:
+                if exp not in self.inputs:
+                    for wire in self.wires:
+                        if exp == wire[0]:
+                            return str(setallInOne(wire[1]))
+            if exp.find("~") != -1:
+                if exp.replace("~","").strip() in self.inputs:
+                    return "(~"+str(exp.replace("~","").strip())+")"
+                else:
+                    
+                    for wire in self.wires:
+                        if exp.replace("~","").strip() == wire[0]:
+                            return "(~"+str(setallInOne(wire[1]))+")"
+            if exp.find("&") != -1:
+                sp = exp.replace("&"," & ").split(" ")
+                if sp[0] not in self.inputs:
+                    for wire in self.wires:
+                        if sp[0] == wire[0]:
+                            sp[0] = str(setallInOne(wire[1]))
+                if sp[2] not in self.inputs:
+                    for wire in self.wires:
+                        if sp[2] == wire[0]:
+                            sp[2] = str(setallInOne(wire[1]))
+                return "("+sp[0] + "&" + sp[2]+")"
+            
+            if exp.find("|") != -1:
+                sp = exp.replace("|"," | ").split(" ")
+                if sp[0] not in self.inputs:
+                    for wire in self.wires:
+                        if sp[0] == wire[0]:
+                            sp[0] = str(setallInOne(wire[1]))
+                if sp[2] not in self.inputs:
+                    for wire in self.wires:
+                        if sp[2] == wire[0]:
+                            sp[2] = str(setallInOne(wire[1]))
+                return "("+sp[0] + "|" + sp[2]+")"
+        lineToOut = []                       
+        for output in self.outputs:
+            for wire in self.wires:
+                if wire[0] == output:
+                    eq = wire[1]
+                    lineToOut.append(output+" = "+setallInOne(eq).replace("~"," ~ ").replace("|"," | ").replace("&"," & ").replace("("," ( ").replace(")"," ) ").strip().replace("  "," "))
+        return "\n".join(lineToOut)
+        
+                    
     def moduleDefine(self, line):
         cmd = self.processedCmds[line-1][0]
         endMIndex = cmd.find("(")
