@@ -24,15 +24,16 @@ class VReader:
             print("ERROR READING VERILOG FILE!")
         
     def startProcessing(self):
-        #try:
+        try:
             self.getLines()
             self.processLines()
             self.isUsedWiresInModule()
             self.graphLines = self.outGraph()
             self.truthLines = self.truthTable()
             self.allInOneLines = self.allInOnenize()
-        #except:
-            #self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
+            self.recFeedBack()
+        except:
+            self.ERRORS.append(self.fileName + " - SYNTAX_ERROR:ERROR PROCESSING LINES")
     
     def writeOutput(self, fileName):
         try:
@@ -182,7 +183,22 @@ class VReader:
             if passedIndex > charIndex:
                 return i+1
             
-            
+    def recFeedBack(self, startI=-1, wireCheck=""):
+        i = -1
+        for wire in self.wires:
+            i += 1
+            if i < startI or wireCheck == "":
+                if wireCheck != "":
+                    wireName = wireCheck
+                else:
+                    wireName = wire[0]
+                wireEqs = wire[1].replace("~"," ~ ").replace("|"," | ").replace("&", " & ").split(" ")
+                for wireEq in wireEqs:
+                    if wireEq not in "&~|":
+                        if wireName == wireEq:
+                            self.ERRORS.append(self.fileName + " - FEEDBACK_ERROR:FEED BACK DETECTED ON DEFINING GATE OUTPUT "+wireName)
+                        else:
+                            self.recFeedBack(i, wireName)
     def moduleCall(self, line, cc):
         
         cmd = self.processedCmds[line-1][0]
